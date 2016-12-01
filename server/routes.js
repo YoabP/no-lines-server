@@ -27,6 +27,7 @@ module.exports = function(app){
     var email = req.body.email;
     var pass  = req.body.password;
     var name  = req.body.name;
+    var type = req.body.type;
 
     if(!email || !pass || !name){
       return res.status(500).send("Missing Parameters");
@@ -39,8 +40,15 @@ module.exports = function(app){
       disabled: false
     })
       .then(function(userRecord) {
+        var db = admin.database();
+        var usersRef = db.ref("users");
+        var userRef = usersRef.child(userRecord.uid);
+        userRef.set({
+            name: userRecord.displayName,
+            type: type
+          });
           return res.status(201).json(userRecord);
-        })
+      })
       .catch(function(error) {
         return res.status(500).send(error);
       });
@@ -62,12 +70,30 @@ module.exports = function(app){
       name: req.body.name,
       email: email,
     }
-    return res.status(201)
-      .json(
+    //get business name
+    var businessName;
+    var usersRef = db.ref("users");
+    var bizRef = usersRef.child(queueName);
+    var biz;
+    bizRef.once("value", function(data) {
+      biz = data.val();
+      if(biz && biz.type == 'biz'){
+        //name the queue
+        businessName = biz.name;
         queueRef.child(queueName)
-        .child(tableSize)
-        .push(userToEnqueue).key
-    );
+        .child('name').set(businessName);
+        return res.status(201)
+        .json(
+          queueRef.child(queueName)
+          .child('queue')
+          .child(tableSize)
+          .push(userToEnqueue).key
+        );
+      }
+      else{
+        return res.status(404).send("Business Not Found");
+      }
+    });
   });
 
   router.post('/dequeue', function(req, res){
@@ -75,32 +101,38 @@ module.exports = function(app){
     var tableSize = req.body.table_size;
     var db = admin.database();
     var queueRef = db.ref("queues");
-    var activeQueue = queueRef
-      .child(queueName)
-      .child(tableSize);
-    activeQueue.once("value", function(data) {
-      var key, val; //first person on the queue
-      data.forEach(function (child){
-        key = child.key;
-        val = child.val();
-        return true;
+
+    var queueRoot = queueRef
+      .child(queueName);
+    queueRoot.child('name').once("value", function(data) {
+      var businessName = data.val();
+      var activeQueue = queueRoot
+        .child('queue')
+        .child(tableSize);
+      activeQueue.once("value", function(data) {
+        var key, val; //first person on the queue
+        data.forEach(function (child){
+          key = child.key;
+          val = child.val();
+          return true;
+        });
+        var reciever = {
+          email: val.email,
+          name: val.name,
+          business: businessName
+        };
+        mail.sendMail(reciever);
+        //remove from queue
+        var userRef = activeQueue.child(key);
+        userRef.remove()
+        .then(function() {
+          console.log("Remove succeeded.")
+        })
+        .catch(function(error) {
+          console.log("Remove failed: " + error.message)
+        });
+        return res.send("sent");
       });
-      var reciever = {
-        email: val.email,
-        name: val.name,
-        business: queueName
-      };
-      mail.sendMail(reciever);
-      //remove from queue
-      var userRef = activeQueue.child(key);
-      userRef.remove()
-      .then(function() {
-        console.log("Remove succeeded.")
-      })
-      .catch(function(error) {
-        console.log("Remove failed: " + error.message)
-      });
-      return res.send("sent");
     });
   });
   app.use('/api', router);

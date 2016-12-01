@@ -1,6 +1,5 @@
 var nodemailer = require('nodemailer');
 var config = require ('./environment');
-console.log(`smtps://${config.mail.user}@${config.mail.provider}:${config.mail.pass}@smtp.${config.mail.provider}`);
 // create reusable transporter object using the default SMTP transport
 var transporter = nodemailer
   .createTransport(
