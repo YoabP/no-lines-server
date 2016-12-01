@@ -5,6 +5,7 @@
 
 var express    = require('express');
 var admin = require("firebase-admin");
+var mail = require('./config/mail');
 
 module.exports = function(app){
   //Routes for the API
@@ -30,7 +31,6 @@ module.exports = function(app){
     if(!email || !pass || !name){
       return res.status(500).send("Missing Parameters");
     }
-
     admin.auth().createUser({
       email: email,
       emailVerified: false,
@@ -49,32 +49,27 @@ module.exports = function(app){
   //API routes
   router.post('/enqueue',function(req, res){
     var queueName = req.body.business_id;
-    var uid = req.body.uid;
+    var name = req.body.name;
+    var email = req.body.email;
     var tableSize = req.body.table_size;
     var db = admin.database();
     var queueRef = db.ref("queues");
 
-    if(!uid || !queueName || !tableSize){
+    if(!email || !queueName || !tableSize){
       return res.status(500).send("Missing Parameters");
+    }
+    var userToEnqueue = {
+      name: req.body.name,
+      email: email,
     }
     return res.status(201)
       .json(
         queueRef.child(queueName)
         .child(tableSize)
-        .push(uid).key
+        .push(userToEnqueue).key
     );
   });
-    /*admin.auth().getUser(uid)
-    .then(function(userRecord) {
-      queueRef.child(queueName)
-      .child(tableSize)
-      .push(userRecord.uid)
-    })
-    .catch(function(error) {
-      return res.status(500).send(error);
-    });*/
 
-  ///});
   router.post('/dequeue', function(req, res){
     var queueName = req.body.business_id;
     var tableSize = req.body.table_size;
@@ -83,7 +78,6 @@ module.exports = function(app){
     var activeQueue = queueRef
       .child(queueName)
       .child(tableSize);
-    //TODO fix this
     activeQueue.once("value", function(data) {
       var key, val; //first person on the queue
       data.forEach(function (child){
@@ -91,16 +85,22 @@ module.exports = function(app){
         val = child.val();
         return true;
       });
-      admin.auth().getUser(val)
-      .then(function(userRecord) {
-        var email = userRecord.email;
-        console.log(email);
-        
-        return res.send("placeholder");
+      var reciever = {
+        email: val.email,
+        name: val.name,
+        business: queueName
+      };
+      mail.sendMail(reciever);
+      //remove from queue
+      var userRef = activeQueue.child(key);
+      userRef.remove()
+      .then(function() {
+        console.log("Remove succeeded.")
       })
       .catch(function(error) {
-        return res.status(500).send(error);
+        console.log("Remove failed: " + error.message)
       });
+      return res.send("sent");
     });
   });
   app.use('/api', router);
