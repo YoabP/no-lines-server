@@ -1,0 +1,27 @@
+{
+  "name": "no-lines-server",
+  "version": "1.0.0",
+  "description": "Server for no lines app. Interfaces with firebase for queue adding and removing. Sends notifications (E-mail) to users.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node ./server/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YoabP/no-lines-server.git"
+  },
+  "author": "Yoab Pizarro",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/YoabP/no-lines-server/issues"
+  },
+  "homepage": "https://github.com/YoabP/no-lines-server#readme",
+  "dependencies": {
+    "body-parser": "^1.15.2",
+    "express": "^4.14.0",
+    "firebase-admin": "^4.0.3",
+    "lodash": "^4.17.2",
+    "nodemailer": "^2.6.4"
+  }
+}
